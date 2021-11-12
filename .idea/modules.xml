@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/../automatedKyc/.idea/automatedKyc.iml" filepath="$PROJECT_DIR$/../automatedKyc/.idea/automatedKyc.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../kyc/.idea/kyc.iml" filepath="$PROJECT_DIR$/../kyc/.idea/kyc.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/orashar.iml" filepath="$PROJECT_DIR$/.idea/orashar.iml" />
+    </modules>
+  </component>
+</project>
