@@ -23,6 +23,8 @@ function PI(props) {
     const [imageSRC, setImageSRC] = useState([]);
     const [isAgent, setIsAgent] = useState(props.isAgent);
     const [isCalledAnswered, setIsCalledAnswered] = useState(false);
+    const [userLocationObj, setUserLocationObj] = useState({});
+    const [kycLocationObj, setKycLocationObj] = useState({});
 
     const loadModels = async () => {
         await faceapi.loadSsdMobilenetv1Model('./models')
@@ -78,6 +80,17 @@ function PI(props) {
             setReceivedFiles(filename);
         });
 
+        socket.on('fetch-location', () => {
+            getGeolocation();
+            console.log("fetching location", userLocationObj);
+            // socket.emit('sending-location', userLocationObj);
+        });
+
+        socket.on('receive-location', (userLocation) => {
+            console.log("receiving location");
+            setUserLocationObj(userLocation);
+        });
+
         myPeer.on('call', call => {
             const answerCall = window.confirm("Do you want to answer?");
             if (answerCall) {
@@ -99,6 +112,11 @@ function PI(props) {
 
     }, []);
 
+    useEffect(() => {
+        if (!isAgent && userLocationObj) {
+            socket.emit('sending-location', userLocationObj);
+        }
+    }, [userLocationObj]);
 
     const Call = () => {
         // Make a peerJs call and send them our stream
@@ -154,8 +172,8 @@ function PI(props) {
                     const match = matcher.findBestMatch(det2.descriptor)
                     // console.log("detections in id = ", det1, det2, " = ", match)
                     // alert(match.toString())
-                    if(match.label !== 'unknown') alert('KYC Ho gyi');
-                } else alert("Kon ho tum");
+                    if(match.label !== 'unknown') alert('Face Verified :)');
+                } else alert("Face not matched :(");
             })
     }
 
@@ -174,6 +192,25 @@ function PI(props) {
             });
     }
 
+    const handleFetchLocation = () => {
+        socket.emit('request-location');
+        axios({
+            method: 'get',
+            url: baseUrl + 'file/get-location'
+        })
+            .then(res => {
+                console.log("Loc ayi h", res.data);
+                setKycLocationObj(res.data.location);
+            })
+            .catch((error) => {
+                alert(error);
+            });
+    }
+
+    const checkLocation = () => {
+        alert('Geo-Location Verified');
+    }
+
     const callButton = () => {
         console.log("Call Button Called");
         console.log(isAgent, userId === true);
@@ -181,32 +218,50 @@ function PI(props) {
             console.log("Agent");
             return (
                 <div>
-                    <button onClick={Call}>Call Agent</button>
+                    <button className={"btn btn-secondary"} onClick={Call}>Call Agent</button>
                     <hr/>
                     <header><h2>Upload Documents</h2></header>
-                    <form onSubmit={handleDocumentUpload} encType="multipart/form-data">
+                    <form className={"p-4"} onSubmit={handleDocumentUpload} encType="multipart/form-data">
                         <input type="file" name="testfile" onChange={onChangeHandler}/>
-                        <button type="submit">Submit</button>
+                        <button className={"btn btn-primary"} type="submit">Submit</button>
                     </form>
                 </div>
             );
         } else if (isCalledAnswered && isAgent){
             return (
-                <div>
-                    <p>
-                        <button onClick={handleFetchKYC}>Fetch KYC</button>
-                    </p>
+                <div className={"bg-light m-2 p-4"}>
+                    <header><center><h3>KYC Verification</h3></center></header>
                     <Container fluid>
+                        <header><h4 className={"text-primary"}> Face Verification </h4></header>
                         <Row>
-                            <Col><h3>Image Compare Karega?</h3></Col>
+                            <p>
+                                <button className={"m-2 btn btn-secondary"} onClick={handleFetchKYC}>Fetch KYC</button>
+                            </p>
                             <Col>
                                 <canvas className="photo_canvas" ref={canvasRef} width="200" height="200"/>
                             </Col>
-                            <Col><img ref={kycImgRef} src={imageSRC} alt="image aayegi" width="200" height="200"
-                                      crossOrigin='anonymous'/></Col>
+                            <Col>
+                                <img ref={kycImgRef} src={imageSRC} alt="image aayegi" width="200" height="200" crossOrigin='anonymous'/>
+                                <button className={"m-5 btn btn-success"} onClick={checkKyc}>Check KYC</button>
+                            </Col>
+                        </Row>
+                    </Container>
+                    <hr className={"m-4"}/>
+                    <Container fluid className={"mt-4"}>
+                        <header><h4 className={"text-primary"}> Geo-Location Verification </h4></header>
+                        <Row>
                             <p>
-                                <button onClick={checkKyc}>Check KYC</button>
+                                <button className={"m-2 btn btn-secondary"} onClick={handleFetchLocation}>Fetch GeoLocation</button>
                             </p>
+                            <Col>
+                                <label>Current Location:</label>
+                                <input className={"m-2"} type={"text"} placeholder={`${userLocationObj?.town}, ${userLocationObj?.country}, ${userLocationObj?.postcode}`} disabled/>
+                            </Col>
+                            <Col>
+                                <label>KYC Location: </label>
+                                <input className={"m-2"} type={"text"} placeholder={`${kycLocationObj?.town}, ${kycLocationObj?.country}, ${kycLocationObj?.postcode}`} disabled/>
+                                <button className={"m-5 btn btn-success"} onClick={checkLocation}>Verify Location</button>
+                            </Col>
                         </Row>
                     </Container>
                 </div>
@@ -249,33 +304,56 @@ function PI(props) {
 
     const showReceivedFiles = () => {
         console.log("received files are, ", receivedFiles);
-        if (receivedFiles.length === 0) return<></>;
+        if (!isCalledAnswered || !isAgent) return<></>;
         return (
-            <div>
-                <p> Received File - <button onClick={handleDownload}>Download</button> </p>
-
-                <p> <button onClick={handleSetKYC}>Set As KYC</button> </p>
+            <div className={"m-2 p-4"}>
+                <header><center><h3>User Documents</h3></center></header>
+                {receivedFiles.length?
+                    <p className={"p-4"}> Received File -
+                        <button className={"btn btn-secondary m-2"} onClick={handleDownload}>Download</button>
+                        <button className={"btn btn-success m-2"} onClick={handleSetKYC}>Set As KYC</button>
+                    </p>
+                    : <></>}
             </div>
         )
+    }
+
+    const reverseGeolocate = async (lat, long) => {
+        const LOCATION_API_KEY = "pk.fccf22209d9a90a5cba88f11c7c8bfdb";
+        const url = `https://eu1.locationiq.com/v1/reverse.php?key=${LOCATION_API_KEY}&lat=${lat}&lon=${long}&format=json`;
+        await fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                console.log(data.address)
+                setUserLocationObj({...data.address, lat, long});
+            })
+            .catch(e => console.log(e))
+    }
+
+    const getGeolocation = () => {
+        navigator.geolocation.getCurrentPosition((pos) => {
+            console.log(pos)
+            reverseGeolocate(pos.coords.latitude, pos.coords.longitude)
+        })
     }
 
     return (
         <div>
             <Container fluid>
-                <Row>
+                <Row className={"bg-info"}>
                     <Col xs = {12} md ={6}>
-                        <small>My Video</small>
+                        <center><p className={"text-white fw-bold"}>My Video</p></center>
                         <video muted={true} ref = {myVideoRef} style={{width: 600, height: 600}} />
                     </Col>
                     <Col>
-                        <small>User/ Agent Video</small>
+                        <center><p className={"text-white fw-bold"}> {!isAgent? "Agent" : "User"} Video</p></center>
                         <video ref = {otherVideoRef} style={{width: 600, height: 600}} />
                     </Col>
                 </Row>
-                <hr/>
-                {callButton()}
-                {showReceivedFiles()}
-
+                <Row className={"m-2 p-4"}>
+                    <Col className={"bg-light"} xs={12} md = {8}>{callButton()}</Col>
+                    <Col className={"bg-light"}>{showReceivedFiles()}</Col>
+                </Row>
             </Container>
         </div>
     );
